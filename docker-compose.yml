@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # Basic auth (change these!)
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=changeme123
+
+      # Host settings
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+
+      # Timezone
+      - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
+
+      # Data persistence
+      - N8N_USER_FOLDER=/home/node/.n8n
+
+      # Telemetry
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=true
+
+      # OpenProject MCP server connection
+      - OPENPROJECT_URL=${OPENPROJECT_URL}
+      - OPENPROJECT_API_KEY=${OPENPROJECT_API_KEY}
+
+      # Allow node expressions to read $env (needed for OPENPROJECT_URL in HTTP Request nodes)
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./openproject-mcp:/data/openproject-mcp
+
+  openproject-mcp-bridge:
+    image: node:24-alpine
+    container_name: openproject-mcp-bridge
+    restart: unless-stopped
+    working_dir: /data/openproject-mcp
+    environment:
+      - OPENPROJECT_URL=${OPENPROJECT_URL}
+      - OPENPROJECT_API_KEY=${OPENPROJECT_API_KEY}
+    volumes:
+      - ./openproject-mcp:/data/openproject-mcp
+    command: >
+      npx -y mcp-proxy
+      --port 8765
+      --server sse
+      --shell
+      node /data/openproject-mcp/dist/index.js
+
+volumes:
+  n8n_data:
+    driver: local

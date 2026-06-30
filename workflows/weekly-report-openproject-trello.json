@@ -1,0 +1,227 @@
+{
+  "id": "wf-weekly-openproject-trello-001",
+  "name": "Weekly OpenProject Report -> Trello",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 16 * * 5"
+            }
+          ]
+        }
+      },
+      "name": "Every Friday 16:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300],
+      "id": "trigger-1"
+    },
+    {
+      "parameters": {
+        "formTitle": "Manual Weekly Report Test",
+        "formDescription": "Optionally override the OpenProject user name and reference date used to compute the report week. Leave blank to use defaults (Đàm Quốc Khánh, current week).",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "OpenProject User Name",
+              "fieldType": "text",
+              "requiredField": false,
+              "placeholder": "Đàm Quốc Khánh"
+            },
+            {
+              "fieldLabel": "Reference Date (YYYY-MM-DD)",
+              "fieldType": "text",
+              "requiredField": false,
+              "placeholder": "e.g. 2026-06-10"
+            }
+          ]
+        }
+      },
+      "name": "Manual Test Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [220, 460],
+      "id": "trigger-form"
+    },
+    {
+      "parameters": {
+        "jsLanguage": "javaScript",
+        "jsCode": "// Note: OpenProject's API key for this integration lacks permission to list/search\n// all users (403 on /api/v3/users), so name-to-ID resolution can't be done live.\n// Add teammates here as needed.\nconst USER_NAME_TO_ID = {\n  'đàm quốc khánh': 21,\n  'dam quoc khanh': 21,\n  'khanh': 21,\n};\n\nconst input = $input.first().json || {};\nconst overrideUserName = input['OpenProject User Name'];\nconst overrideDate = input['Reference Date (YYYY-MM-DD)'];\n\nconst userName = (overrideUserName && overrideUserName.trim() !== '') ? overrideUserName.trim() : 'Đàm Quốc Khánh';\nconst normalizedName = userName.toLowerCase();\nconst userId = USER_NAME_TO_ID[normalizedName];\nif (!userId) {\n  throw new Error(`Unknown user name \"${userName}\". Add it to USER_NAME_TO_ID in this node's code.`);\n}\n\nconst now = (overrideDate && overrideDate !== '') ? new Date(overrideDate + 'T00:00:00Z') : new Date();\n\nconst day = now.getDay();\nconst diffToMonday = day === 0 ? -6 : 1 - day;\nconst monday = new Date(now);\nmonday.setDate(now.getDate() + diffToMonday);\nmonday.setHours(0, 0, 0, 0);\nconst friday = new Date(monday);\nfriday.setDate(monday.getDate() + 4);\n\nfunction fmtShort(d) {\n  const dd = String(d.getDate()).padStart(2, '0');\n  const mm = String(d.getMonth() + 1).padStart(2, '0');\n  return `${dd}/${mm}`;\n}\nfunction fmtISO(d) {\n  return d.toISOString().split('T')[0];\n}\nfunction getWeekNumber(d) {\n  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));\n  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));\n  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));\n  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);\n}\n\nconst weekNumber = getWeekNumber(monday);\nconst year = monday.getFullYear();\nconst saturday = new Date(friday);\nsaturday.setDate(friday.getDate() + 1);\n\nreturn [{\n  json: {\n    userId,\n    userName,\n    mondayDate: fmtISO(monday),\n    fridayDate: fmtISO(friday),\n    filterEndDate: fmtISO(saturday),\n    cardTitle: `${fmtShort(monday)} - ${fmtShort(friday)}/${year}`,\n    weekNumber,\n    year\n  }\n}];"
+      },
+      "name": "Compute Week Range",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300],
+      "id": "code-week-range"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Use this to call OpenProject: search/list work packages (with deterministic date-range filtering via updated_from/updated_to), get details, comments, statuses, users.",
+        "endpointUrl": "http://openproject-mcp-bridge:8765/sse",
+        "serverTransport": "sse",
+        "authentication": "none",
+        "include": "selected",
+        "includeTools": ["search_work_packages", "search_users", "get_work_package"]
+      },
+      "name": "OpenProject MCP",
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.3,
+      "position": [700, 480],
+      "id": "mcp-openproject"
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-flash",
+        "options": {
+          "reasoningEffort": "none",
+          "maxRetries": 5
+        }
+      },
+      "name": "Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [560, 480],
+      "id": "gemini-model",
+      "credentials": {
+        "openAiApi": {
+          "id": "gemini-openai-compat-credential-001",
+          "name": "Gemini (OpenAI-compatible)"
+        }
+      },
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Gọi tool 'search_work_packages' của OpenProject MCP CHÍNH XÁC với các tham số sau (không tự đổi giá trị):\nassignee_id = {{ $json.userId }}\nupdated_from = \"{{ $json.mondayDate }}\"\nupdated_to = \"{{ $json.fridayDate }}\"\nonly_open = false\nlimit = 200\n\nTool này đã tự xử lý đúng khoảng ngày (bao gồm cả ngày updated_to) ở phía server — bạn KHÔNG cần và KHÔNG được tự lọc lại theo ngày, KHÔNG tự gọi lại với tham số khác, và PHẢI dùng đúng toàn bộ kết quả tool trả về (không thêm, không bớt, không bịa task nào ngoài danh sách đó). Nếu tool trả về 0 kết quả, nghĩa là KHÔNG có task nào được cập nhật trong tuần này — phần 1️⃣ để trống (không bịa task), và phần 2️⃣ ghi tổng số = 0.\n\nQUAN TRỌNG: instance OpenProject này KHÔNG dùng percentageDone (luôn null) — % hoàn thành phải được suy ra từ tên status theo đúng bảng quy đổi sau:\n- New = 0%\n- Pending = 20%\n- Revise = 30%\n- Follow = 10%\n- In progress = 50%\n- Review = 80%\n- Done = 100%\n- Resolved = 100%\n- Closed = 100%\n- Cancel = 0%\n- Reject = 0%\n(Nếu gặp status khác không có trong bảng, suy luận hợp lý dựa trên ý nghĩa tên status, ưu tiên các mốc 0/20/50/80/100.)\n\nVới mỗi task đã lọc, lấy: id, subject, status. Suy ra % hoàn thành từ status theo bảng trên.\n\nSau đó tạo ra duy nhất đoạn text theo đúng format Markdown dạng bullet lồng nhau sau (giữ nguyên ký tự, emoji, thụt lề bằng 2 dấu cách cho mỗi cấp con):\n\n👤 Họ tên: Đàm Quốc Khánh\n🏢 Bộ phận: AGV\n📅 Tuần báo cáo: Tuần {{ $('Compute Week Range').first().json.weekNumber }} / {{ $('Compute Week Range').first().json.year }}\n\n================================================\n\n🎯 1️⃣ TASK OPENPROJECT & TIẾN ĐỘ TUẦN\n\n(Lặp lại cho mỗi task dữ liệu sau, không bị bớt task nào, viết \"Kết quả đạt được\" ngắn gọn dựa trên status thực tế của task, không bịa):\n\n- [#<id>]({{ $env.OPENPROJECT_URL }}/work_packages/<id>) - <subject>\n  - Mục tiêu tuần:\n    - <mô tả ngắn mục tiêu, dựa trên subject/description của task>\n  - Kết quả đạt được:\n    - <tóm tắt ngắn kết quả thực tế dựa trên status>\n    - % hoàn thành mục tiêu tuần: <% suy ra từ status theo bảng quy đổi>%\n    - Đánh giá: <emoji theo quy ước: ✅ nếu =100%, 🟡 nếu 50-99%, 🔴 nếu <50%> <\"Đã hoàn thành\" nếu =100%, nếu không thì \"Đang thực hiện\">\n\nQuy ước:\n✅ 100%  |  🟡 50–99%  |  🔴 <50%\n\n================================================\n\n📈 2️⃣ TỔNG HỢP TIẾN ĐỘ TUẦN\n\n- Tổng số task OpenProject đã làm: <tổng số task>\n- Số task đạt ≥70%: <số task với % suy ra >=70>\n- Số task <70%: <số task với % suy ra <70>\n- Tiến độ trung bình tuần này: <trung bình % suy ra, làm tròn>%\n\n================================================\n\n⚠️ 3️⃣ BLOCK / ISSUE ẢNH HƯỞNG TIẾN ĐỘ\n(Chỉ ghi những vấn đề làm CHẬM task. Nếu không có task nào bị block/có issue thì để trống)\n\n================================================\n\n➡️ 4️⃣ KẾ HOẠCH TUẦN TỚI (GẮN OP)\n(Để trống, người dùng sẽ tự điền)\n\n================================================\n\n📝 5️⃣ TỰ ĐÁNH GIÁ\n\n- Tiến độ chung tuần này: <trung bình % suy ra>%\n- Nhận xét:\n  (để trống)\n\nChỉ trả về đúng đoạn text ở trên, không thêm giới thiệu hay giới hạn markdown code block."
+      },
+      "name": "Summarize With AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [880, 300],
+      "id": "agent-summarize"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.trello.com/1/boards/2DVVEiye/lists",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "trelloApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "name"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Trello Lists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 300],
+      "id": "http-trello-lists",
+      "credentials": {
+        "trelloApi": {
+          "id": "trello-api-credential-001",
+          "name": "Trello account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsLanguage": "javaScript",
+        "jsCode": "const lists = $input.all().map(i => i.json);\nconst target = lists.find(l => l.name === 'Kh\\u00e1nh');\nif (!target) {\n  throw new Error(\"List 'Kh\\u00e1nh' not found on board\");\n}\nreturn [{ json: { listId: target.id } }];"
+      },
+      "name": "Find List ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 300],
+      "id": "code-find-list"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.trello.com/1/cards",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "trelloApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "idList",
+              "value": "={{ $json.listId }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $('Compute Week Range').first().json.cardTitle }}"
+            },
+            {
+              "name": "pos",
+              "value": "top"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "desc",
+              "value": "={{ $('Summarize With AI Agent').first().json.output }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Create Trello Card",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 300],
+      "id": "http-create-card",
+      "credentials": {
+        "trelloApi": {
+          "id": "trello-api-credential-001",
+          "name": "Trello account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Friday 16:00": {
+      "main": [[{ "node": "Compute Week Range", "type": "main", "index": 0 }]]
+    },
+    "Manual Test Form": {
+      "main": [[{ "node": "Compute Week Range", "type": "main", "index": 0 }]]
+    },
+    "Compute Week Range": {
+      "main": [[{ "node": "Summarize With AI Agent", "type": "main", "index": 0 }]]
+    },
+    "Gemini Chat Model": {
+      "ai_languageModel": [[{ "node": "Summarize With AI Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "OpenProject MCP": {
+      "ai_tool": [[{ "node": "Summarize With AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Summarize With AI Agent": {
+      "main": [[{ "node": "Get Trello Lists", "type": "main", "index": 0 }]]
+    },
+    "Get Trello Lists": {
+      "main": [[{ "node": "Find List ID", "type": "main", "index": 0 }]]
+    },
+    "Find List ID": {
+      "main": [[{ "node": "Create Trello Card", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "timezone": "Asia/Ho_Chi_Minh"
+  }
+}

@@ -1,0 +1,16 @@
+Dưới đây là báo cáo về các work package đã được cập nhật trong tuần này:
+
+#2857 - Xếp chồng pallet trong Buffer bị chậm
+% hoàn thành: 80%
+Đánh giá: 🟡 Đang thực hiện
+
+#4211 - Tạo Map và kiểm tra phần di chuyển của AGF
+% hoàn thành: 0%
+Đánh giá: 🟡 Đang thực hiện
+
+#4296 - Tìm hiểu và setup lại vấn đề Safety của AGF số 2
+% hoàn thành: 50%
+Đánh giá: 🟡 Đang thực hiện
+
+Tổng số task: 3
+Trung bình %: 43%
