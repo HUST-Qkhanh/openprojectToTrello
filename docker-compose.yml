@@ -6,18 +6,18 @@ services:
     container_name: n8n
     restart: unless-stopped
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
     environment:
       # Basic auth (change these!)
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=admin
       - N8N_BASIC_AUTH_PASSWORD=changeme123
 
-      # Host settings
-      - N8N_HOST=localhost
+      # Host settings — replace with your Tailscale hostname (run: tailscale status)
+      - N8N_HOST=${TAILSCALE_HOST}
       - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://${TAILSCALE_HOST}/
 
       # Timezone
       - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
@@ -44,6 +44,8 @@ services:
     image: node:24-alpine
     container_name: openproject-mcp-bridge
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:8765:8765"
     working_dir: /data/openproject-mcp
     environment:
       - OPENPROJECT_URL=${OPENPROJECT_URL}

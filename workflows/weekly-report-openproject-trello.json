@@ -21,35 +21,8 @@
     },
     {
       "parameters": {
-        "formTitle": "Manual Weekly Report Test",
-        "formDescription": "Optionally override the OpenProject user name and reference date used to compute the report week. Leave blank to use defaults (Đàm Quốc Khánh, current week).",
-        "formFields": {
-          "values": [
-            {
-              "fieldLabel": "OpenProject User Name",
-              "fieldType": "text",
-              "requiredField": false,
-              "placeholder": "Đàm Quốc Khánh"
-            },
-            {
-              "fieldLabel": "Reference Date (YYYY-MM-DD)",
-              "fieldType": "text",
-              "requiredField": false,
-              "placeholder": "e.g. 2026-06-10"
-            }
-          ]
-        }
-      },
-      "name": "Manual Test Form",
-      "type": "n8n-nodes-base.formTrigger",
-      "typeVersion": 2.2,
-      "position": [220, 460],
-      "id": "trigger-form"
-    },
-    {
-      "parameters": {
         "jsLanguage": "javaScript",
-        "jsCode": "// Note: OpenProject's API key for this integration lacks permission to list/search\n// all users (403 on /api/v3/users), so name-to-ID resolution can't be done live.\n// Add teammates here as needed.\nconst USER_NAME_TO_ID = {\n  'đàm quốc khánh': 21,\n  'dam quoc khanh': 21,\n  'khanh': 21,\n};\n\nconst input = $input.first().json || {};\nconst overrideUserName = input['OpenProject User Name'];\nconst overrideDate = input['Reference Date (YYYY-MM-DD)'];\n\nconst userName = (overrideUserName && overrideUserName.trim() !== '') ? overrideUserName.trim() : 'Đàm Quốc Khánh';\nconst normalizedName = userName.toLowerCase();\nconst userId = USER_NAME_TO_ID[normalizedName];\nif (!userId) {\n  throw new Error(`Unknown user name \"${userName}\". Add it to USER_NAME_TO_ID in this node's code.`);\n}\n\nconst now = (overrideDate && overrideDate !== '') ? new Date(overrideDate + 'T00:00:00Z') : new Date();\n\nconst day = now.getDay();\nconst diffToMonday = day === 0 ? -6 : 1 - day;\nconst monday = new Date(now);\nmonday.setDate(now.getDate() + diffToMonday);\nmonday.setHours(0, 0, 0, 0);\nconst friday = new Date(monday);\nfriday.setDate(monday.getDate() + 4);\n\nfunction fmtShort(d) {\n  const dd = String(d.getDate()).padStart(2, '0');\n  const mm = String(d.getMonth() + 1).padStart(2, '0');\n  return `${dd}/${mm}`;\n}\nfunction fmtISO(d) {\n  return d.toISOString().split('T')[0];\n}\nfunction getWeekNumber(d) {\n  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));\n  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));\n  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));\n  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);\n}\n\nconst weekNumber = getWeekNumber(monday);\nconst year = monday.getFullYear();\nconst saturday = new Date(friday);\nsaturday.setDate(friday.getDate() + 1);\n\nreturn [{\n  json: {\n    userId,\n    userName,\n    mondayDate: fmtISO(monday),\n    fridayDate: fmtISO(friday),\n    filterEndDate: fmtISO(saturday),\n    cardTitle: `${fmtShort(monday)} - ${fmtShort(friday)}/${year}`,\n    weekNumber,\n    year\n  }\n}];"
+        "jsCode": "// Note: OpenProject's API key for this integration lacks permission to list/search\n// all users (403 on /api/v3/users), so name-to-ID resolution can't be done live.\n// Add teammates here as needed.\nconst USER_NAME_TO_ID = {\n  'đàm quốc khánh': 21,\n  'dam quoc khanh': 21,\n  'khanh': 21,\n};\n\nconst input = $input.first().json || {};\nconst overrideUserName = input['OpenProject User Name'];\nconst overrideDate = input['Reference Date (YYYY-MM-DD)'];\n\nconst userName = (overrideUserName && overrideUserName.trim() !== '') ? overrideUserName.trim() : 'Đàm Quốc Khánh';\nconst normalizedName = userName.toLowerCase();\nconst userId = USER_NAME_TO_ID[normalizedName];\nif (!userId) {\n  throw new Error(`Unknown user name \"${userName}\". Add it to USER_NAME_TO_ID in this node's code.`);\n}\n\nconst now = (overrideDate && overrideDate !== '') ? new Date(overrideDate + 'T00:00:00') : new Date();\n\nconst day = now.getDay();\nconst diffToMonday = day === 0 ? -6 : 1 - day;\nconst monday = new Date(now);\nmonday.setDate(now.getDate() + diffToMonday);\nmonday.setHours(0, 0, 0, 0);\nconst friday = new Date(monday);\nfriday.setDate(monday.getDate() + 4);\n\nfunction fmtShort(d) {\n  const dd = String(d.getDate()).padStart(2, '0');\n  const mm = String(d.getMonth() + 1).padStart(2, '0');\n  return `${dd}/${mm}`;\n}\n// Format in local time (GENERIC_TIMEZONE); toISOString() would convert to UTC and shift the date back a day in UTC+7.\nfunction fmtISO(d) {\n  const yyyy = d.getFullYear();\n  const mm = String(d.getMonth() + 1).padStart(2, '0');\n  const dd = String(d.getDate()).padStart(2, '0');\n  return `${yyyy}-${mm}-${dd}`;\n}\nfunction getWeekNumber(d) {\n  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));\n  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));\n  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));\n  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);\n}\n\nconst weekNumber = getWeekNumber(monday);\nconst year = monday.getFullYear();\nconst saturday = new Date(friday);\nsaturday.setDate(friday.getDate() + 1);\n\nreturn [{\n  json: {\n    userId,\n    userName,\n    mondayDate: fmtISO(monday),\n    fridayDate: fmtISO(friday),\n    filterEndDate: fmtISO(saturday),\n    cardTitle: `${fmtShort(monday)} - ${fmtShort(friday)}/${year}`,\n    weekNumber,\n    year\n  }\n}];"
       },
       "name": "Compute Week Range",
       "type": "n8n-nodes-base.code",
@@ -59,19 +32,59 @@
     },
     {
       "parameters": {
-        "descriptionType": "manual",
-        "toolDescription": "Use this to call OpenProject: search/list work packages (with deterministic date-range filtering via updated_from/updated_to), get details, comments, statuses, users.",
-        "endpointUrl": "http://openproject-mcp-bridge:8765/sse",
-        "serverTransport": "sse",
-        "authentication": "none",
-        "include": "selected",
-        "includeTools": ["search_work_packages", "search_users", "get_work_package"]
+        "jsLanguage": "javaScript",
+        "jsCode": "const d = $input.first().json;\nconst b64 = Buffer.from(`apikey:${$env.OPENPROJECT_API_KEY}`).toString('base64');\n// OpenProject filters are AND-only, so fetch assigned and accountable (responsible) tasks separately and merge later.\nconst updatedAt = { updatedAt: { operator: '<>d', values: [d.mondayDate, d.filterEndDate] } };\nreturn ['assignee', 'responsible'].map(field => ({\n  json: {\n    ...d,\n    role: field,\n    filters: JSON.stringify([{ [field]: { operator: '=', values: [String(d.userId)] } }, updatedAt]),\n    authHeader: `Basic ${b64}`\n  }\n}));"
       },
-      "name": "OpenProject MCP",
-      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
-      "typeVersion": 1.3,
-      "position": [700, 480],
-      "id": "mcp-openproject"
+      "name": "Build API Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 300],
+      "id": "code-build-request"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.OPENPROJECT_URL }}/api/v3/work_packages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authHeader }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filters",
+              "value": "={{ $json.filters }}"
+            },
+            {
+              "name": "pageSize",
+              "value": "200"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Fetch Work Packages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [840, 300],
+      "id": "http-fetch-wp"
+    },
+    {
+      "parameters": {
+        "jsLanguage": "javaScript",
+        "jsCode": "// Only report tasks in these statuses (the updatedAt filter already limits to tasks modified this week).\nconst ALLOWED_STATUSES = ['in progress', 'review', 'closed'];\n// One response per role (assignee, accountable); dedupe by id.\nconst byId = new Map();\nfor (const item of $input.all()) {\n  // OpenProject replies with application/hal+json, which n8n leaves as a raw string in `data`.\n  const body = typeof item.json.data === 'string' ? JSON.parse(item.json.data) : item.json;\n  for (const wp of body._embedded?.elements || []) {\n    const status = (wp._links?.status?.title || '').toLowerCase();\n    if (!ALLOWED_STATUSES.includes(status)) continue;\n    if (!byId.has(wp.id)) {\n      byId.set(wp.id, { id: wp.id, project: wp._links?.project?.title || 'Không rõ dự án', subject: wp.subject, status: wp._links?.status?.title || 'Unknown' });\n    }\n  }\n}\n// Sort by project then id so tasks of the same project sit together for the report.\nconst workPackages = [...byId.values()].sort((a, b) => a.project.localeCompare(b.project) || a.id - b.id);\nreturn [{ json: { workPackages, count: workPackages.length, workPackagesJson: JSON.stringify(workPackages, null, 2) } }];"
+      },
+      "name": "Extract Work Packages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 300],
+      "id": "code-extract-wp"
     },
     {
       "parameters": {
@@ -84,7 +97,7 @@
       "name": "Gemini Chat Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1,
-      "position": [560, 480],
+      "position": [1100, 480],
       "id": "gemini-model",
       "credentials": {
         "openAiApi": {
@@ -99,12 +112,12 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=Gọi tool 'search_work_packages' của OpenProject MCP CHÍNH XÁC với các tham số sau (không tự đổi giá trị):\nassignee_id = {{ $json.userId }}\nupdated_from = \"{{ $json.mondayDate }}\"\nupdated_to = \"{{ $json.fridayDate }}\"\nonly_open = false\nlimit = 200\n\nTool này đã tự xử lý đúng khoảng ngày (bao gồm cả ngày updated_to) ở phía server — bạn KHÔNG cần và KHÔNG được tự lọc lại theo ngày, KHÔNG tự gọi lại với tham số khác, và PHẢI dùng đúng toàn bộ kết quả tool trả về (không thêm, không bớt, không bịa task nào ngoài danh sách đó). Nếu tool trả về 0 kết quả, nghĩa là KHÔNG có task nào được cập nhật trong tuần này — phần 1️⃣ để trống (không bịa task), và phần 2️⃣ ghi tổng số = 0.\n\nQUAN TRỌNG: instance OpenProject này KHÔNG dùng percentageDone (luôn null) — % hoàn thành phải được suy ra từ tên status theo đúng bảng quy đổi sau:\n- New = 0%\n- Pending = 20%\n- Revise = 30%\n- Follow = 10%\n- In progress = 50%\n- Review = 80%\n- Done = 100%\n- Resolved = 100%\n- Closed = 100%\n- Cancel = 0%\n- Reject = 0%\n(Nếu gặp status khác không có trong bảng, suy luận hợp lý dựa trên ý nghĩa tên status, ưu tiên các mốc 0/20/50/80/100.)\n\nVới mỗi task đã lọc, lấy: id, subject, status. Suy ra % hoàn thành từ status theo bảng trên.\n\nSau đó tạo ra duy nhất đoạn text theo đúng format Markdown dạng bullet lồng nhau sau (giữ nguyên ký tự, emoji, thụt lề bằng 2 dấu cách cho mỗi cấp con):\n\n👤 Họ tên: Đàm Quốc Khánh\n🏢 Bộ phận: AGV\n📅 Tuần báo cáo: Tuần {{ $('Compute Week Range').first().json.weekNumber }} / {{ $('Compute Week Range').first().json.year }}\n\n================================================\n\n🎯 1️⃣ TASK OPENPROJECT & TIẾN ĐỘ TUẦN\n\n(Lặp lại cho mỗi task dữ liệu sau, không bị bớt task nào, viết \"Kết quả đạt được\" ngắn gọn dựa trên status thực tế của task, không bịa):\n\n- [#<id>]({{ $env.OPENPROJECT_URL }}/work_packages/<id>) - <subject>\n  - Mục tiêu tuần:\n    - <mô tả ngắn mục tiêu, dựa trên subject/description của task>\n  - Kết quả đạt được:\n    - <tóm tắt ngắn kết quả thực tế dựa trên status>\n    - % hoàn thành mục tiêu tuần: <% suy ra từ status theo bảng quy đổi>%\n    - Đánh giá: <emoji theo quy ước: ✅ nếu =100%, 🟡 nếu 50-99%, 🔴 nếu <50%> <\"Đã hoàn thành\" nếu =100%, nếu không thì \"Đang thực hiện\">\n\nQuy ước:\n✅ 100%  |  🟡 50–99%  |  🔴 <50%\n\n================================================\n\n📈 2️⃣ TỔNG HỢP TIẾN ĐỘ TUẦN\n\n- Tổng số task OpenProject đã làm: <tổng số task>\n- Số task đạt ≥70%: <số task với % suy ra >=70>\n- Số task <70%: <số task với % suy ra <70>\n- Tiến độ trung bình tuần này: <trung bình % suy ra, làm tròn>%\n\n================================================\n\n⚠️ 3️⃣ BLOCK / ISSUE ẢNH HƯỞNG TIẾN ĐỘ\n(Chỉ ghi những vấn đề làm CHẬM task. Nếu không có task nào bị block/có issue thì để trống)\n\n================================================\n\n➡️ 4️⃣ KẾ HOẠCH TUẦN TỚI (GẮN OP)\n(Để trống, người dùng sẽ tự điền)\n\n================================================\n\n📝 5️⃣ TỰ ĐÁNH GIÁ\n\n- Tiến độ chung tuần này: <trung bình % suy ra>%\n- Nhận xét:\n  (để trống)\n\nChỉ trả về đúng đoạn text ở trên, không thêm giới thiệu hay giới hạn markdown code block."
+        "text": "=Dưới đây là danh sách work packages OpenProject đã được cập nhật trong tuần {{ $('Compute Week Range').first().json.mondayDate }} đến {{ $('Compute Week Range').first().json.fridayDate }} của user {{ $('Compute Week Range').first().json.userName }}:\n\n{{ $('Extract Work Packages').first().json.workPackagesJson }}\n\nTổng số work packages: {{ $('Extract Work Packages').first().json.count }}\n\nNếu count = 0, nghĩa là KHÔNG có task nào được cập nhật trong tuần này — phần 1️⃣ để trống (không bịa task), và phần 2️⃣ ghi tổng số = 0.\n\nQUAN TRỌNG: instance OpenProject này KHÔNG dùng percentageDone (luôn null) — % hoàn thành phải được suy ra từ tên status theo đúng bảng quy đổi sau:\n- New = 0%\n- Pending = 20%\n- Revise = 30%\n- Follow = 10%\n- In progress = 50%\n- Review = 80%\n- Done = 100%\n- Resolved = 100%\n- Closed = 100%\n- Cancel = 0%\n- Reject = 0%\n(Nếu gặp status khác không có trong bảng, suy luận hợp lý dựa trên ý nghĩa tên status, ưu tiên các mốc 0/20/50/80/100.)\n\nVới mỗi task trong danh sách, lấy: id, subject, status. Suy ra % hoàn thành từ status theo bảng trên. KHÔNG thêm, KHÔNG bớt, KHÔNG bịa task nào ngoài danh sách đã cung cấp.\n\nSau đó tạo ra duy nhất đoạn text theo đúng format Markdown dạng bullet lồng nhau sau (giữ nguyên ký tự, emoji, thụt lề bằng 2 dấu cách cho mỗi cấp con):\n\n👤 Họ tên: Đàm Quốc Khánh\n🏢 Bộ phận: AGV\n📅 Tuần báo cáo: Tuần {{ $('Compute Week Range').first().json.weekNumber }} / {{ $('Compute Week Range').first().json.year }}\n\n================================================\n\n🎯 1️⃣ TASK OPENPROJECT & TIẾN ĐỘ TUẦN\n\n(GOM NHÓM các task theo trường \"project\": mỗi dự án viết một dòng tiêu đề \"**Dự án <project>:**\", ngay bên dưới liệt kê TẤT CẢ task thuộc dự án đó, không lặp lại tên dự án cho từng task, giữ thứ tự dự án như trong danh sách. Lặp lại cho mỗi task trong danh sách đã cung cấp, không bỏ sót task nào, viết \"Kết quả đạt được\" ngắn gọn dựa trên status thực tế của task, không bịa):\n\n**Dự án <project>:**\n\n- [#<id>]({{ $env.OPENPROJECT_URL }}/work_packages/<id>) - <subject>\n  - Mục tiêu tuần:\n    - <mô tả ngắn mục tiêu, dựa trên subject của task>\n  - Kết quả đạt được:\n    - <tóm tắt ngắn kết quả thực tế dựa trên status>\n    - % hoàn thành mục tiêu tuần: <% suy ra từ status theo bảng quy đổi>%\n    - Đánh giá: <emoji theo quy ước: ✅ nếu =100%, 🟡 nếu 50-99%, 🔴 nếu <50%> <\"Đã hoàn thành\" nếu =100%, nếu không thì \"Đang thực hiện\">\n\nQuy ước:\n✅ 100%  |  🟡 50–99%  |  🔴 <50%\n\n================================================\n\n📈 2️⃣ TỔNG HỢP TIẾN ĐỘ TUẦN\n\n- Tổng số task OpenProject đã làm: <tổng số task>\n- Số task đạt ≥70%: <số task với % suy ra >=70>\n- Số task <70%: <số task với % suy ra <70>\n- Tiến độ trung bình tuần này: <trung bình % suy ra, làm tròn>%\n\n================================================\n\n⚠️ 3️⃣ BLOCK / ISSUE ẢNH HƯỞNG TIẾN ĐỘ\n(Chỉ ghi những vấn đề làm CHẬM task. Nếu không có task nào bị block/có issue thì để trống)\n\n================================================\n\n➡️ 4️⃣ KẾ HOẠCH TUẦN TỚI (GẮN OP)\n(Để trống, người dùng sẽ tự điền)\n\n================================================\n\n📝 5️⃣ TỰ ĐÁNH GIÁ\n\n- Tiến độ chung tuần này: <trung bình % suy ra>%\n- Nhận xét:\n  (để trống)\n\nChỉ trả về đúng đoạn text ở trên, không thêm giới thiệu hay giới hạn markdown code block."
       },
       "name": "Summarize With AI Agent",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.7,
-      "position": [880, 300],
+      "position": [1240, 300],
       "id": "agent-summarize"
     },
     {
@@ -127,7 +140,7 @@
       "name": "Get Trello Lists",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1100, 300],
+      "position": [1460, 300],
       "id": "http-trello-lists",
       "credentials": {
         "trelloApi": {
@@ -144,7 +157,7 @@
       "name": "Find List ID",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1320, 300],
+      "position": [1680, 300],
       "id": "code-find-list"
     },
     {
@@ -185,7 +198,7 @@
       "name": "Create Trello Card",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1540, 300],
+      "position": [1900, 300],
       "id": "http-create-card",
       "credentials": {
         "trelloApi": {
@@ -199,17 +212,20 @@
     "Every Friday 16:00": {
       "main": [[{ "node": "Compute Week Range", "type": "main", "index": 0 }]]
     },
-    "Manual Test Form": {
-      "main": [[{ "node": "Compute Week Range", "type": "main", "index": 0 }]]
-    },
     "Compute Week Range": {
+      "main": [[{ "node": "Build API Request", "type": "main", "index": 0 }]]
+    },
+    "Build API Request": {
+      "main": [[{ "node": "Fetch Work Packages", "type": "main", "index": 0 }]]
+    },
+    "Fetch Work Packages": {
+      "main": [[{ "node": "Extract Work Packages", "type": "main", "index": 0 }]]
+    },
+    "Extract Work Packages": {
       "main": [[{ "node": "Summarize With AI Agent", "type": "main", "index": 0 }]]
     },
     "Gemini Chat Model": {
       "ai_languageModel": [[{ "node": "Summarize With AI Agent", "type": "ai_languageModel", "index": 0 }]]
-    },
-    "OpenProject MCP": {
-      "ai_tool": [[{ "node": "Summarize With AI Agent", "type": "ai_tool", "index": 0 }]]
     },
     "Summarize With AI Agent": {
       "main": [[{ "node": "Get Trello Lists", "type": "main", "index": 0 }]]
